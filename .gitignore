@@ -1,0 +1,4 @@
+*.json
+*.png
+
+!jsons/KH_demo.json
