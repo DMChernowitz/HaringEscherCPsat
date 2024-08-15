@@ -1,6 +1,6 @@
 from src.utils import RecurseConfig
-from src.combinatoric_optimizer import SolutionCollector
-from src.optimizer import TileSolver
+from src.set_covering_optimizer import SolutionCollector
+from src.permutation_optimizer import TileSolver
 from src.classes import Tile
 from src.four_color_thm import get_color_indices
 from src.utils import read_json_tiles
@@ -12,7 +12,7 @@ MODE = 0
 if __name__ == "__main__" and MODE == 0:
     # use a recursive search over a local set covering approach to tesselate.
 
-    # remember that the number of squares in a man tile is 14
+    # remember that the number of cells in a man tile is 14
     # so having a y_width of 7 or 14 means that every 2 or 1 x-widths, respectively, a solution might be possible.
     recurse_config = RecurseConfig(
         dx_per_iter=6,

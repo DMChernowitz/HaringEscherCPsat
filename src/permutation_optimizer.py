@@ -2,7 +2,7 @@
 from typing import List, Tuple
 
 from src.classes import Tile
-from src.utils import reduce_tile_list, wrap_to_square, save_json, get_neighbors
+from src.utils import reduce_tile_list, wrap_to_cell, save_json, get_neighbors
 
 from src.plotter import plot_tile
 
@@ -28,7 +28,7 @@ class TileSolver:
         """
         solve the tile placement problem
         such that tiles that must be adjacent are adjacent
-        and no squares overlap.
+        and no cells overlap.
 
         Optionally, one can choose the wrapping number to start from and end at, so multiple solutions can be
         pasted together.
@@ -38,11 +38,11 @@ class TileSolver:
             w_start: int, the minimum wrapping number to consider (tiles must be grouped above this number)
         """
 
-        total_n_squares = sum([tile.n_indices for tile in self.include_tiles])
+        total_n_cells = sum([tile.n_indices for tile in self.include_tiles])
 
         if w_max is None:
-            w_max = total_n_squares + w_start - 1
-        elif total_n_squares > w_max - w_start:
+            w_max = total_n_cells + w_start - 1
+        elif total_n_cells > w_max - w_start:
             raise ValueError("Tiles do not fit in the grid.")
 
         self.y_min, self.y_max = w_start // self.x_width, w_max // self.x_width
@@ -51,7 +51,7 @@ class TileSolver:
         double_diffs = [2*d for d in allowed_diffs]
 
         print(
-            f"Constructing model with {total_n_squares} squares, "
+            f"Constructing model with {total_n_cells} cells, "
             f"wrapping between w={w_start} and w={w_max}, x_width={self.x_width}"
         )
         for h, tile in enumerate(self.include_tiles):
@@ -65,11 +65,11 @@ class TileSolver:
                     # unfortunately, ORTools does not support modulo INequalities, only equalities
                     self.model.add((self.pos_vars[h][i] + self.pos_vars[h][j]) != 2*k*self.x_width-1)
 
-                # For pairs of squares that are adjacent, the difference in their positions must be in this domain
+                # For pairs of cells that are adjacent, the difference in their positions must be in this domain
                 juxt_difference = self.model.NewIntVarFromDomain(cp_model.Domain.FromValues(allowed_diffs), 'diff')
                 self.model.Add(self.pos_vars[h][i] - self.pos_vars[h][j] == juxt_difference)
 
-            # For pairs of squares that are double apart (face and belly),
+            # For pairs of cells that are double apart (face and belly),
             # the difference in their positions must be in this domain
             for i,j in tile.double_apart_index_list:
                 juxt_double = self.model.NewIntVarFromDomain(cp_model.Domain.FromValues(double_diffs), 'diff')
@@ -81,7 +81,7 @@ class TileSolver:
             self.model.Add(self.pos_vars[g+1][0] < self.pos_vars[g][0])
 
         all_pos = [pos for tile in self.pos_vars for pos in tile]
-        # all distinct constraint: no two squares can be in the same position
+        # all distinct constraint: no two cells can be in the same position
         self.model.AddAllDifferent(all_pos)
 
     def solve(self) -> None:
@@ -100,7 +100,7 @@ class TileSolver:
 
         for h, tile in enumerate(self.include_tiles):
             tile.add_position_list([solver.Value(pos) for pos in self.pos_vars[h]])
-            self.sols_pos.append(list(map(lambda x: wrap_to_square(x, self.x_width), tile.position_list)))
+            self.sols_pos.append(list(map(lambda x: wrap_to_cell(x, self.x_width), tile.position_list)))
 
         self.output_and_print()
 
@@ -110,12 +110,12 @@ class TileSolver:
         save_json(results_dict=results_dict, filename=f"KH_n{len(self.include_tiles)}_x{self.x_width}.json")
         color_list = list(range(len(self.sols_pos)))
         color_list_expanded = sum([[c] * len(tile_array) for c, tile_array in zip(color_list, self.sols_pos)], [])
-        all_squares = sum([tile.position_list for tile in self.include_tiles], [])
+        all_cells = sum([tile.position_list for tile in self.include_tiles], [])
         all_juxts = sum([tile.juxt_position_list for tile in self.include_tiles], [])
         all_eyes_list = sum([tile.eye_position_list for tile in self.include_tiles], [])
         disconnects = set(get_neighbors(self.x_width, self.y_max + 1)) - set(all_juxts)
         plot_tile(
-            square_list=all_squares,
+            cell_list=all_cells,
             separate_list=list(disconnects),
             eye_list=all_eyes_list,
             x_width=self.x_width,
@@ -126,7 +126,7 @@ class TileSolver:
     def all_solutions(self) -> List[List[int]]:
         """Return all possible foldings and rotations of a tile, given the constraints of the model.
 
-        We add a constraint that one of the squares (magic elt) of the tile must touch the top boundary, and one must
+        We add a constraint that one of the cells (magic elt) of the tile must touch the top boundary, and one must
         touch the left boundary, to uniquely position the tile translationally.
         """
 

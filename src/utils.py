@@ -7,7 +7,7 @@ import numpy as np
 JSON_DIR = "jsons"
 
 
-def wrap_to_square(w: int, x_width: int):
+def wrap_to_cell(w: int, x_width: int):
     """convert a 1d index to a 2d index in a square grid of width x_width"""
     return w % x_width, (w // x_width)
 
@@ -18,7 +18,7 @@ def unwrap_to_1d(x: int, y: int, x_width: int) -> int:
 
 
 def get_neighbors(x_width: int, y_height: int) -> List[Tuple[int, int]]:
-    """return a list of tuples of neighboring squares"""
+    """return a list of tuples of neighboring cells"""
     neighbors = []
     for i in range(x_width*y_height):
         if i % x_width != x_width-1:
@@ -30,27 +30,27 @@ def get_neighbors(x_width: int, y_height: int) -> List[Tuple[int, int]]:
 
 def reduce_tile_list(
         tile_solutions: List[List[int]],
-        equivalent_square_indices: List[List[Tuple[int]]] = None,
+        equivalent_cell_indices: List[List[Tuple[int]]] = None,
         torso_length: int = 3,
         arm_length: int = 2,
         leg_length: int = 3
 ) -> Set[Tuple[int]]:
     """Remove duplicates from the tile solutions.
 
-    If equivalent square indices are given explicitely, length params are ignored.
+    If equivalent cell indices are given explicitely, length params are ignored.
 
     Args:
         tile_solutions: list of solutions, each solution is a list of integers (in terms of w coordinates).
-        equivalent_square_indices: list of lists of tuples, inside lists are sequences of equivalent square indices.
-        torso_length: int, the length of the torso. Can be used if equivalent_square_indices are not explicitly given.
-        arm_length: int, the length of the arm. Can be used if equivalent_square_indices are not explicitly given.
-        leg_length: int, the length of the leg. Can be used if equivalent_square_indices are not explicitly given.
+        equivalent_cell_indices: list of lists of tuples, inside lists are sequences of equivalent cell indices.
+        torso_length: int, the length of the torso. Can be used if equivalent_cell_indices are not explicitly given.
+        arm_length: int, the length of the arm. Can be used if equivalent_cell_indices are not explicitly given.
+        leg_length: int, the length of the leg. Can be used if equivalent_cell_indices are not explicitly given.
     """
-    # two placements are equivalent if the w-coord of the squares on index (4,5) and (6,7) are swapped.
-    # and/or the w-coord of the squares on index (8,9,10) and (11,12,13) are swapped
+    # two placements are equivalent if the w-coord of the cells on index (4,5) and (6,7) are swapped.
+    # and/or the w-coord of the cells on index (8,9,10) and (11,12,13) are swapped
     # always sort them to make them unique. Put the smaller first position on the first limb.
-    if equivalent_square_indices is None:
-        equivalent_square_indices = get_equivalent_indices_man_tile(
+    if equivalent_cell_indices is None:
+        equivalent_cell_indices = get_equivalent_indices_man_tile(
             torso_length=torso_length,
             arm_length=arm_length,
             leg_length=leg_length
@@ -58,7 +58,7 @@ def reduce_tile_list(
 
     def _hash(pos_list: List[int]) -> Tuple[int]:
         list_copy = pos_list.copy()
-        for equiv in equivalent_square_indices:
+        for equiv in equivalent_cell_indices:
             left = [pos_list[j] for j in equiv[0]]
             right = [pos_list[j] for j in equiv[1]]
             sorted_limbs = sorted([left,right])
@@ -75,7 +75,7 @@ def get_equivalent_indices_man_tile(
         arm_length: int = 2,
         leg_length: int = 3
 ) -> List[List[Tuple[int]]]:
-    """Return the equivalent indices (under mirror symmetry) of squares in the man tile"""
+    """Return the equivalent indices (under mirror symmetry) of cells in the man tile"""
     indices = []
     pointer = torso_length + 1
     for limb_length in [arm_length, leg_length]:
@@ -125,7 +125,7 @@ def three_pts_collinear(pt1: tuple, pt2: tuple, pt3: tuple) -> bool:
 
 
 def get_strands(juxt_list: List[Tuple[int]]) -> List[List[int]]:
-    """return a list of strands of connected squares"""
+    """return a list of strands of connected cells"""
     # identify all pts with more than 2 outgoing connections
     connex: Dict[int,List[int]] = {}
     for juxt in juxt_list:

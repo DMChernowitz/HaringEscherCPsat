@@ -40,7 +40,7 @@ class Tile:
             _n_indices: int,
             juxt_index_list: List[Tuple[int,int]]
     ) -> (int, List[Tuple[int,int]]):
-        """grow the body of the tile by adding squares from j_start to j_finish.
+        """grow the body of the tile by adding connected cells from j_start to j_finish.
 
         Returns the updated number of indices and the updated juxt_index_list
         """
@@ -72,7 +72,7 @@ class Tile:
             for _ in [0, 1]:
                 thickness.extend([0.7]*(limb_length-1)+[0.8])
 
-        # add the head and torso squares
+        # add the head and torso cells
         n_indices, juxt_index_list = cls.grow_body(
             j_start=0,
             j_finish=head_length+torso_length,
@@ -162,8 +162,10 @@ class Tile:
             width_factor: float = 3.5,
             smoothing_param: float = 0.9
     ) -> None:
-        """Take a list of solutions and return a dictionary with the strands, widths, and color
-        That the plot_tile function can use to plot the solutions. Then call this function.
+        """Take a list of solutions (x,y representation) and return a dictionary with the strands, widths, and color
+        That the plot_tile function can use to plot the solutions. Then call the plot function.
+
+        This will only work if all solutions are of the type (i.e. man / worm) that this instance of the Tile class is.
 
         The plotter will plot each tile as a collection of strands, think of strands roughly as appendages.
         So each arm, leg, and head will be a separate strand, but the torso will be a strand.
@@ -203,8 +205,10 @@ class Tile:
         )
 
     def plot_square_style(self, sols: List[np.array], color_list: List[int] = None) -> None:
-        """Take a list of solutions from the set covering formulation
-        plot using the  plot_tile function that represents as a set of squares.
+        """Take a list of solutions (x,y representation) from the set covering formulation
+        plot using the plot_tile function that represents each cell as a square on a grid.
+
+        This will only work if all solutions are of the type (i.e. man / worm) that this instance of the Tile class is.
 
         Adds an aesthetic margin on the top and bottom of the grid.
         """
@@ -215,18 +219,18 @@ class Tile:
         if color_list is None:
             color_list = list(range(len(sols)))
         color_list_expanded = sum([[c] * len(tile_array) for c, tile_array in zip(color_list, sols)], [])
-        all_squares: List[int] = []
+        all_cells: List[int] = []
         all_juxts: List[Tuple[int]] = []
         all_eyes_list: List[Tuple[int, List[Tuple[float]]]] = []
         for h, tile_array in enumerate(sols):
-            these_squares = list(map(lambda x: unwrap_to_1d(*x, x_width), tile_array + [0, y_margin]))
-            all_squares.extend(these_squares)
-            all_juxts.extend([tuple(sorted([these_squares[i], these_squares[j]])) for i, j in self.juxt_index_list])
-            all_eyes_list.extend(self.map_eyes(these_squares))
+            these_cells = list(map(lambda x: unwrap_to_1d(*x, x_width), tile_array + [0, y_margin]))
+            all_cells.extend(these_cells)
+            all_juxts.extend([tuple(sorted([these_cells[i], these_cells[j]])) for i, j in self.juxt_index_list])
+            all_eyes_list.extend(self.map_eyes(these_cells))
         disconnects = set(get_neighbors(x_width, y_height)) - set(all_juxts)
 
         plot_tile(
-            square_list=all_squares,
+            cell_list=all_cells,
             separate_list=list(disconnects),
             eye_list=all_eyes_list,
             x_width=x_width,

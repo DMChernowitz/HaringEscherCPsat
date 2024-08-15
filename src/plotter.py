@@ -6,7 +6,7 @@ import os
 
 from typing import List, Tuple, Union
 
-from src.utils import wrap_to_square, three_pts_collinear
+from src.utils import wrap_to_cell, three_pts_collinear
 import numpy as np
 
 IMAGE_DIR = "images"
@@ -25,7 +25,7 @@ def color_spot(n):
 
 
 def plot_tile(
-        square_list: List[int],
+        cell_list: List[int],
         separate_list: List[Tuple[int,int]],
         eye_list: List[Tuple[int, List[Tuple[float]]]],
         x_width: int,
@@ -36,12 +36,12 @@ def plot_tile(
     """plot a set of tiles as squares, in terms of the wrapping (w) coordinate.
 
     Args:
-        square_list: list of integers, the squares to plot.
-        separate_list: list of tuples of integers, between each of these squares there is a line.
+        cell_list: list of integers, the cells to plot.
+        separate_list: list of tuples of integers, between each of these cells there is a line.
         eye_list: list of where to plot eyes and their orientation.
         x_width: int, the width of the grid.
         y_height: int, the height of the grid.
-        color_list: list of integers, the color of each square.
+        color_list: list of integers, the color of each cell.
         save_dpi: int, the dpi of the saved image.
     """
 
@@ -56,8 +56,8 @@ def plot_tile(
     colormap = mpl.colormaps.get_cmap('tab10')
 
     # create patch collection
-    for square, color_n in zip(square_list,color_list):
-        x, y = wrap_to_square(square, x_width)
+    for cell, color_n in zip(cell_list,color_list):
+        x, y = wrap_to_cell(cell, x_width)
         rectangles.append(Rectangle(cart_to_map(x,y,square_size), square_size, square_size))
         colors.append(colormap(color_spot(color_n)))
     collection = PatchCollection(rectangles, facecolors=colors)
@@ -65,8 +65,8 @@ def plot_tile(
 
     # now add lines for each juxt
     for edge in separate_list:
-        x1, y1 = wrap_to_square(edge[0], x_width)
-        x2, y2 = wrap_to_square(edge[1], x_width)
+        x1, y1 = wrap_to_cell(edge[0], x_width)
+        x2, y2 = wrap_to_cell(edge[1], x_width)
         if x1 == x2:
             y_use = max(y1,y2)-1
             left_point = cart_to_map(x1, y_use, square_size)
@@ -81,7 +81,7 @@ def plot_tile(
     scatter_x, scatter_y = [], []
     # plot eyes
     for eye_w, eye_coords in eye_list:
-        base_x, base_y = wrap_to_square(eye_w, x_width)
+        base_x, base_y = wrap_to_cell(eye_w, x_width)
         for eye in eye_coords:
             x,y = cart_to_map(base_x+eye[0]+0.5, base_y+eye[1]-0.5, square_size)
             scatter_x.append(x)
@@ -96,7 +96,7 @@ def plot_tile(
     ax.set_xticks([])
     ax.set_yticks([])
 
-    filename = f"KH_{len(square_list)}_"
+    filename = f"KH_{len(cell_list)}_"
     n_files_before = sum([f.startswith(filename) for f in os.listdir(IMAGE_DIR)])
     # save the figure
     plt.savefig(f"{IMAGE_DIR}/{filename}{n_files_before}.png", dpi=save_dpi, bbox_inches='tight')

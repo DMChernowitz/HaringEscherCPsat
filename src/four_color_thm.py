@@ -8,6 +8,8 @@ def get_color_indices(sols: List[np.array]) -> List[int]:
     """Take a list of solutions that are a tiling, and return a list of numbers so no neighbors have the same number
 
     sols: list of np.arrays of shape [(x_1,y_1), ... (x_n,y_n)]
+
+    We use the freedom of the objective function to return the solution that has the most equal number of each color.
     """
     l = len(sols)
     print(f"Attempting to color {l} tiles")
@@ -18,10 +20,12 @@ def get_color_indices(sols: List[np.array]) -> List[int]:
     # now get neighbor matrix
     neighbor_matrix = get_neighbor_matrix(inverse_tile_hashmap, l, x_width, y_width)
 
+
     for n_colors in [3,4,5]:
         model = cp_model.CpModel()
-        color_assignment: List[List[cp_model.IntVar]] = []  # color_assignment[tile_nr][color_nr]
+        color_assignment: List[List[cp_model.IntVar]] = []  # create variables
         for tile_nr in range(l):
+            # we want a boolean per tile-color pair. It is unit if that tile has that color.
             color_assignment.append([model.NewBoolVar(f"color_{tile_nr}_{i}") for i in range(n_colors)])
             # a tile has exactly one color
             model.add(sum(color_assignment[tile_nr]) == 1)
@@ -29,10 +33,12 @@ def get_color_indices(sols: List[np.array]) -> List[int]:
         for i in range(l):
             for j in range(l):
                 if neighbor_matrix[i][j] and i != j:
+                    # by our method, a tile will neighbor itself. Still it should not have a different color to itself.
                     for c in range(n_colors):
-                        model.add(color_assignment[i][c] + color_assignment[j][c] <= 1)
+                        model.add(color_assignment[i][c] + color_assignment[j][c] <= 1)  # neighbors must be distinct
 
-        # total color numbers
+        # total number of tiles per color
+        # The boolean representation (not a color IntVar per tile) makes counting the number of tiles per color natural.
         total_colors = [sum(color_assignment[i][c] for i in range(l)) for c in range(n_colors)]
         minimum_color_count = model.NewIntVar(1, l, "minimum_color_count")
         model.add_min_equality(minimum_color_count, total_colors)
@@ -56,7 +62,10 @@ def get_color_indices(sols: List[np.array]) -> List[int]:
     return list(range(l))
 
 
-def get_inverse_tile_hashmap(sols) -> Dict[Tuple[int, int], int]:
+def get_inverse_tile_hashmap(sols: List[np.array]) -> Dict[Tuple[int, int], int]:
+    """Take a list of solutions (order is important) in terms of their (x,y) coordinates,
+     And return a dict (hashmap) that, indexed per x,y-gridpoint, which tile is present there.
+     """
     inverse_tile_hashmap: Dict[Tuple[int, int], int] = {}
     for h, tile_array in enumerate(sols):
         for x, y in tile_array:
@@ -67,6 +76,9 @@ def get_inverse_tile_hashmap(sols) -> Dict[Tuple[int, int], int]:
 
 
 def get_neighbor_matrix(inverse_tile_hashmap, l, x_width, y_width) -> List[List[int]]:
+    """Go cell by cell, and check its right and bottom neighbor (if present).
+    Add the two tiles to the neighbor juxtaposition matrix.
+    """
     neighbor_matrix = [[0]*l for _ in range(l)]
     for x in range(x_width):
         for y in range(y_width):

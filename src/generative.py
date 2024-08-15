@@ -3,9 +3,9 @@ from typing import List, Tuple, Dict
 
 
 class Outline:
-    """The outline of a particular instantiation of a tile is determined by the squares that are part of the tile.
+    """The outline of a particular instantiation of a tile is determined by the cells that are part of the tile.
 
-    Thus two tiles with a different folding, but occupying the same squares, will have the same outline.
+    Thus two tiles with a different folding, but occupying the same cells, will have the same outline.
 
     In the set covering problem, we only care about the outline of the tiles, not the specific folding.
 
@@ -15,9 +15,9 @@ class Outline:
 
     def __init__(self, pts_array: np.array):
         """
-        In a tile, the order of the squares determines the function of each square, and the juxtaposition (connections)
+        In a tile, the order of the cells determines the function of each cell, and the juxtaposition (connections)
 
-        For the outline, we only care about the squares that are part of the tile, not the order. So sorting the points
+        For the outline, we only care about the cells that are part of the tile, not the order. So sorting the points
         will give us a unique identifier for the outline.
 
         Create the outline by just sorting the points in the array: then we don't care in what order they started."""
@@ -41,9 +41,9 @@ def proposed_next_pieces(current_orientation):
 
 
 def grow(_ap, extra_check = None):
-    """Expand on a list of possibilities by adding one square to the end of each possibility at each free spot.
+    """Expand on a list of possibilities by adding one cell to the end of each possibility at each free spot.
 
-    Prevent the square from being in the squares reserved by extra_check. This is to leave room for the other leg.
+    Prevent the cell from being in the cells reserved by extra_check. This is to leave room for the other leg.
     """
     if extra_check is None:
         extra_check = []
@@ -73,7 +73,7 @@ def get_bounding_box(possibility) -> Tuple[int, int, int, int]:
 
 
 def translate_to_top_left(possibility):
-    """translate the collection of squares so that the top left square is at (0,0)"""
+    """translate the collection of cells so that the top left cell is at (0,0)"""
     min_x, min_y, _, _ = get_bounding_box(possibility)
     return possibility - [min_x, min_y]
 
@@ -93,7 +93,7 @@ def get_xy_translate_range(possibility, x_left, x_right, y_bottom, y_top):
     first index: translate along x
     second index: translate along y
     third index: index (element) of the tiling (0-13)
-    fourth index: x or y coordinate of the square (0-1)
+    fourth index: x or y coordinate of the cell (0-1)
     """
     min_x, min_y, max_x, max_y = get_bounding_box(possibility)
     translate_x = np.insert(np.arange(x_left-min_x, x_right-max_x)[:,np.newaxis,np.newaxis,np.newaxis], 1, 0, axis=3)
@@ -119,7 +119,7 @@ class GrouperOfMen:
         first index: translate along x
         second index: translate along y
         third index: index (element) of the tiling (0-13 in the case of 3-2-3 man tiles)
-        fourth index: x or y coordinate of the square (0-1)
+        fourth index: x or y coordinate of the cell (0-1)
         """
 
         all_translations = {
@@ -164,7 +164,7 @@ class GrouperOfMen:
         all_possibilities = grow(all_possibilities)
         new_all_possibilities = []
         for possibility in all_possibilities:
-            # get squares eligible for start of legs
+            # get cells eligible for start of legs
             leg_starts = [p for p in proposed_next_pieces(possibility[3]) if p not in possibility]
             for h in range(len(leg_starts) - 1):
                 left_leg_start = leg_starts[h]
@@ -180,7 +180,7 @@ class GrouperOfMen:
         return new_all_possibilities
 
     @property
-    def n_squares_per_tile(self):
+    def n_cells_per_tile(self):
         return len(self.all_p[0])
 
 

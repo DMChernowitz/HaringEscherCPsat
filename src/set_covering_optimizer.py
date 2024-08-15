@@ -94,7 +94,7 @@ class SolutionCollector(cp_model.CpSolverSolutionCallback):
         self.set_cover_hash_map: Dict[Tuple[int, int], List[cp_model.IntVar]] = {}
 
         self.all_pts = self.pts_in_grid.union(self.optional_pts)
-        self.n_men = (len(self.pts_in_grid) + len(self.optional_pts) // 2) // self.grouper_of_men.n_squares_per_tile
+        self.n_men = (len(self.pts_in_grid) + len(self.optional_pts) // 2) // self.grouper_of_men.n_cells_per_tile
         self.all_bool_vars: Dict[Outline, List[List[Union[cp_model.IntVar, None]]]] = {k: [] for k in self.all_p.keys()}
         self.all_vars_list = []
         self.optional_cover_bools: Dict[Tuple[int, int], cp_model.IntVar] = {}
