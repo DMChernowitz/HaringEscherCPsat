@@ -20,7 +20,6 @@ def get_color_indices(sols: List[np.array]) -> List[int]:
     # now get neighbor matrix
     neighbor_matrix = get_neighbor_matrix(inverse_tile_hashmap, l, x_width, y_width)
 
-
     for n_colors in [3,4,5]:
         model = cp_model.CpModel()
         color_assignment: List[List[cp_model.IntVar]] = []  # create variables
@@ -82,10 +81,12 @@ def get_neighbor_matrix(inverse_tile_hashmap, l, x_width, y_width) -> List[List[
     neighbor_matrix = [[0]*l for _ in range(l)]
     for x in range(x_width):
         for y in range(y_width):
-            if x + 1 < x_width:
+            if not (x,y) in inverse_tile_hashmap:
+                continue
+            if x + 1 < x_width and (x+1, y) in inverse_tile_hashmap:
                 n1, n2 = inverse_tile_hashmap[(x, y)], inverse_tile_hashmap[(x + 1, y)]
                 neighbor_matrix[n1][n2] = 1
-            if y + 1 < y_width:
+            if y + 1 < y_width and (x, y+1) in inverse_tile_hashmap:
                 n3, n4 = inverse_tile_hashmap[(x, y)], inverse_tile_hashmap[(x, y + 1)]
                 neighbor_matrix[n3][n4] = 1
     return neighbor_matrix

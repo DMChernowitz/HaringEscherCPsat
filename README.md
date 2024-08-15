@@ -179,4 +179,84 @@ exactly _one_ of the `S_i`'s. So let the `S_i` be the collection of points that 
 Then the model we need to solve is the following: choose a Boolean variable for each set. `v_j`. If `v_j==1`, this means including the subset in the set cover. Otherwise, exclude it.
 Now let `I_xy` be the collection of all indices `i` such that point `x,y` is in `S_i`.
 
-    $\sum_{i\in\I_x,y} v_i == 1, \forall (x,y) \in S$
+    (Sum v_i for all i in I_xy)  <=  1,         for all (x,y) in S
+    (Sum v_i for all i)  =  m,
+
+where `m` is the total number of tiles to be used. If `|S| = n*m`, for `n` the number of cells in each tile, then the first line will be equality: all grid points are needed.
+We can also make a distinction between points that _have_ to be covered and those that are optional. For the required points, the first line is a strict equality. This will be useful later on. 
+
+By the way, please excuse the awkward avoiding of math formatting. But I hope the intention is clear.
+
+This model is simple enough. In order to construct it in Python, we need the sets `S_i`. We can go about this in at least two ways:
+
+1. Prescriptive: Find all solutions of the permutation formulation of the Tiling Problem, constricting the solution to align with e.g. the top and left boundary. Then throw away equivalent (left-right symmetric) solutions.
+2. Generative: Generate all solutions by a branching algorithm that starts with e.g. the head, and grows outward by placing each subsequent cell in all possible free spots. Then add rotations and reflections.
+
+In this repo, both are implemented, and for the case of the man-tile of `n=14` described above, both produce 6124 foldings of the man tile. 
+
+However, this technique does not significantly outperform the permutation representation. There are only dozens of constraints, and each variable is boolean. But with translations of the foldings, there are still tens- to hundreds of thousands of these variables.
+We must find a way to solve the program locally on a subset of the grid, and patch together such solutions.
+
+### Tree search of Tiling Problem solution space.
+
+The approach taken in this repo is to fill a grid in a strip with tesselated tiles in separate _chunks_ moving from left to right.
+
+To this end, we begin by appointing required, and optional points on the grid, like so:
+
+|     | x=0 | x=1 | x=2 | x=3 | x=4 | x=5 |
+|---|-----|-----|-----|-----|-----|-----|
+| y=0 | R   | R   | R   | O   | O   | .   |
+| y=1 | R   | R   | R   | O   | O   | .   |
+| y=2 | R   | R   | R   | O   | O   | .   |
+| y=3 | R   | R   | R   | O   | O   | .   |
+
+For the required points `S_R` we create constraints as
+
+    (Sum v_i for all i in I_xy)  =  1,         for all (x,y) in S_R
+
+For the optional points `S_O`, create one more boolean variable `o_xy`, to describe whether they are covered, and add
+
+    (Sum v_i for all i in I_xy)  =  o_xy,         for all (x,y) in S_O
+
+Furthermore, we add constraints that prevent gaps that are unlikely to be filled, so
+
+    o_xy  >=  o_(x+1)y
+
+For pairs of points if both are present in `S_O`. Let the pair `S_R` and `S_O` be associated with a chunk.
+
+When a solution is found, we can easily read off which optional points are unused, and add them to the next set of required points:
+
+|     | x=3 | x=4 | x=5 | x=6 | x=7 | x=8 | x=9 |
+|---|-----|-----|-----|-----|-----|-----|---|
+| y=0 | R   | R   | R   | R   | O   | O   | . |
+| y=1 | .   | R   | R   | R   | O   | O   | . |
+| y=2 | .   | .   | R   | R   | O   | O   | . |
+| y=3 | .   | R   | R   | R   | O   | O   | . |
+
+The tricky bit, is that there isn't always a solution to the set covering problem on any chunk, with the available tile foldings. 
+If we reach a chunk in the algorithm that has no solution, we must backtrack to the previous chunk, and move to the next solution on that previous chunk. Then the set of grid points on the current chunk will change, and we can attempt to solve again.
+
+This calls for a recursive algorithm that performs a depth first search. Starting from a certain depth, we can attempt to solve with the right edge straight, with only required points, and `S_O` empty:
+
+|     | x=15 | x=16 | x=17 | x=18 | x=19 | 
+|---|------|------|------|------|------|
+| y=0 | .    | .    | R    | R    | R    |
+| y=1 | .    | .    | .    | R    | R    |
+| y=2 | .    | .    | R    | R    | R    |
+| y=3 | .    | .    | .    | .    | R    |
+
+If a solution is found, the search is terminated, and the solution is returned. If not, we can either backtrack to a different solution of the previous chunk, or add more chunks. 
+
+An example (for which the data can be found in the jsons directory) places 3 tiles per chunk, and terminates in a smaller third chunk. 
+
+Chunk 1:
+![chunk 1](./readme_imgs/grow_1.png)
+Chunk 2:
+![chunk 2](./readme_imgs/grow_2.png)
+Chunk 3:
+![chunk 3](./readme_imgs/grow_3.png)
+
+This example omits the first 4 failed attempts at chunk 1, and the first failed attempt on the last branch of chunk 2, before chunk 3 could finally terminate with a straight edge.
+
+### Scripts
+

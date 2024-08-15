@@ -23,7 +23,7 @@ def get_neighbors(x_width: int, y_height: int) -> List[Tuple[int, int]]:
     for i in range(x_width*y_height):
         if i % x_width != x_width-1:
             neighbors.append((i, i+1))
-        if i // x_width != x_width-1:
+        if i // x_width != y_height-1:
             neighbors.append((i, i+x_width))
     return neighbors
 
