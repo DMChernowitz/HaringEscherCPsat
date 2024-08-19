@@ -459,7 +459,30 @@ After producing all foldings, these are rotated, and there are methods to group 
 
 # Four-color theorem
 
+This is a small module that uses constraint programming (Google OR-tools) to find a coloring of solutions to the tiling problem that use only four (or sometimes three) colors. 
+It works by finding which tiles neighbor each other, then creating demands that neighbors cannot share the same color. Finally, it optimizes such that the presence of least-represented color is maximized, ensuring that there are approximately the same number of each color.
+It's found in the `four_color_theorem.py` script.
 
+Typically, we would choose optimization variables `c_i` in e.g. {0,1,2,3} for each tile. But because of the objective, it is more natural to construct boolean variables to signal the pairing of each possible color to each tile `c_i_j` in {0,1} for `i` the tile index and `j` the color index. 
+The condition that neighbors have distinct colors is,
+for each pair of neighboring tiles `i` and `k`,
+
+    c_i_j + c_k_j <= 1       for each color j
+
+And each tile must have exactly one color,
+
+    sum_j c_i_j = 1           for each tile i
+
+Then the number of tiles of color `j` is the sum of `c_i_j` over all `i`. OR-tools can then include a minimum-equality (which could also be achieved with a set of inequalities) to ensure that the least-represented color is maximized.
+
+If possible, the script will output a coloring with 3 distinct colors. This is not always possible, in which case the script will move on to 4 colors.
+To interact with this module, simply call the function:
+
+- `get_color_indices()`
+  - arguments:
+    - `sols`: list of numpy arrays, each array is a tile, with the (x,y) coordinates of the cells in the tile.
+  - returns:
+    - A list of integers, in the same order as the tiles in the input list. Each integer represents a unique color, and this list can be entered into the plotting functions below.
 
 # Plotters
 
