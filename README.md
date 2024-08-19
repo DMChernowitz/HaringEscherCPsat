@@ -104,7 +104,7 @@ but by specific class methods `make_man` and `make_worm`, that return an instanc
     - `juxt_index_list`: list, with the appropriate edges connecting the body parts 
     - `double_apart_list`: list, equals [(0,2)], forcing the head opposite the hips.
     - `thickness`: list, of thickness (float) per cell for rendering the body parts organically by plotters.
-    - `eyes`: list, containing information of where to plot markings that serve as eyes, on index 0, opposite index 1.
+    - `eyes`: list, containing placement (relative to the center of the cell) of markings that serve as eyes. In this case, on the cell at index 0, facing away from the cell at index 1. The base orientation is with the reference cell below the eyes.
     
 `Tile.make_worm()` is a similar function returning a tile without splitting in its topology.
 
@@ -116,7 +116,7 @@ but by specific class methods `make_man` and `make_worm`, that return an instanc
     - `juxt_index_list`: list, with the appropriate edges connecting each index to the next.
     - `double_apart_list`: list, empty: no constraints on the shape.
     - `thickness`: list, of thickness (float) per cell
-    - `eyes`: list, containing information of where to plot markings that serve as eyes, on index 0, opposite index 1.
+    - `eyes`: list, containing information of where to plot markings that serve as eyes, on the cell at index 0, facing away from index 1.
 
 The way to utilize this class is to make a list of `Tile` instances, and feed that list into the `TileSolver` class. This class is intended to solve the tiling problem.
 
@@ -233,7 +233,9 @@ When a solution is found, we can easily read off which optional points are unuse
 | y=2 | .   | .   | R   | R   | O   | O   | . |
 | y=3 | .   | R   | R   | R   | O   | O   | . |
 
-The tricky bit, is that there isn't always a solution to the set covering problem on any chunk, with the available tile foldings. 
+There are two tricky bits:
+1. We can only use tile foldings that fit entirely in the chunk. There may be points not covered by any possible tile, and then the chunk is infeasible a priori.
+2. Even if we cover all grid points with at least one prospective tile, there isn't always a solution to the set covering problem that has only one tile on each grid point, and a tile over all required points.
 If we reach a chunk in the algorithm that has no solution, we must backtrack to the previous chunk, and move to the next solution on that previous chunk. Then the set of grid points on the current chunk will change, and we can attempt to solve again.
 
 This calls for a recursive algorithm that performs a depth first search. Starting from a certain depth, we can attempt to solve with the right edge straight, with only required points, and `S_O` empty:
@@ -256,7 +258,261 @@ Chunk 2:
 Chunk 3:
 ![chunk 3](./readme_imgs/grow_3.png)
 
-This example omits the first 4 failed attempts at chunk 1, and the first failed attempt on the last branch of chunk 2, before chunk 3 could finally terminate with a straight edge.
+This example omits the first 4 failed solutions at chunk 1 (solutions were found that didn't allow for a feasible 2nd chunk, or even for a cover on all grid points). On the last branch of chunk 1, there was one failed solution on chunk 2 which could not terminate. Then on the second solution of chunk 2, chunk 3 could finally terminate with a straight edge.
+
+Here is the search tree in a diagram:
+
+```
+    Start  |  Chunk 1     |  Chunk 2     |  Chunk 3    |   Termination
+    Start --> solution 1 --> infeasible
+          --> solution 2 --> gridpoints without cover
+          --> solution 3 --> infeasible
+          --> solution 4 --> infeasible
+          --> solution 5 --> solution 1 --> infeasible
+                         --> solution 2 --> solution 1 --> Termination
+```
+
 
 ### Scripts
 
+On to the implementation of this algorithm.
+The central objects are the `SolutionCollector` from `set_covering_optimizer.py` and `Tile` class from the `classes.py` file.
+
+The `Tile` class is the same as in the permutation optimizer. The `SolutionCollector` class is intended to collect, one by one, the solutions to the set covering problem of a given chunk.
+In order to be able to recurse upon finding a solution, using Google OR-tools, we must create a class that inherits from `cp_model.CpSolverSolutionCallback`. These can be passed to the solver as a _Callback object_. When we choose the setting `search_all_solutions=True`, the solver will keep searching until ALL feasible solutions have been visited. Each hit, it will call the `on_solution_callback` of the callback object.
+The trick in this repo, is that the `SolutionCollector` class is also responsible for constructing the model, solving it (passing itself as its own Callback object), and then recursively creating more instances of itself on every callback, to search through the tree of chunks until it terminates. The objects share a common config that can communicate between them, and knows when the search has terminated successfully.
+
+Here is the search tree of the example above, but in terms of the most important objects and methods and their recursion, printed in pseudocode, so omitting steps and arguments.
+
+```
+s1 = SolutionCollector()  # to solve chunk 1
+s1.construct_variables()
+s1.construct_constraints()
+s1.solve_myself() # passing self as callback
+    s1.on_solution_callback() # solution 1 creates new SolutionCollector instance, to solve chunk 2
+        s2 = SolutionCollector()
+        s2.construct_variables()
+        s2.construct_constraints()
+        s2.solve_myself() # passing self as callback
+            # chunk 2 infeasible
+    s1.on_solution_callback() # solution 2 creates new SolutionCollector instance, to solve chunk 2
+        s2 = SolutionCollector()
+        s2.construct_variables()
+        s2.construct_constraints()
+            # uncovered grid points on chunk 2: infeasible a priori
+    s1.on_solution_callback() # solution 3 creates new SolutionCollector instance, to solve chunk 2
+        s2 = SolutionCollector()
+        s2.construct_variables()
+        s2.construct_constraints()
+        s2.solve_myself() # passing self as callback
+            # chunk 2 infeasible
+    s1.on_solution_callback() # solution 4 creates new SolutionCollector instance, to solve chunk 2
+        s2 = SolutionCollector()
+        s2.construct_variables()
+        s2.construct_constraints()
+        s2.solve_myself() # passing self as callback
+            # chunk 2 infeasible
+    s1.on_solution_callback() # solution 5 creates new SolutionCollector instance, to solve chunk 2
+        s2 = SolutionCollector()
+        s2.construct_variables()
+        s2.construct_constraints()
+        s2.solve_myself() # passing self as callback
+            s2.on_solution_callback() # solution 1 creates new SolutionCollector instance, to solve chunk 3
+                s3 = SolutionCollector()
+                s3.construct_variables()
+                s3.construct_constraints()
+                s3.solve_myself() # passing self as callback
+                    # chunk 3 infeasible
+            s2.on_solution_callback() # solution 2 creates new SolutionCollector instance, to solve chunk 3
+                s3 = SolutionCollector()
+                s3.construct_variables()
+                s3.construct_constraints()
+                s3.solve_myself() # passing self as callback
+                    s3.on_solution_callback() # solution 1 terminates: we have reached the desired depth and a straight edge.
+                    s3.solved = True # terminate 
+                s3.stop_search()
+            s2.solved = True # terminate
+        s2.stop_search()
+    s1.solved = True # terminate
+s1.stop_search()
+s1.output_solution()
+```
+
+The `SolutionCollector` class is initialized using a `RecurseConfig` instance. This is a simple class that contains the configuration of the search, and the termination condition. It is passed to the `SolutionCollector` instance, and then to all new instances created by the callback for consistency.
+It has the following properties:
+
+- `RecurseConfig.__init__()`:
+  - arguments:
+    - `dx_per_iter`: int in [2,10], the number of cells to move the right boundary of the chunk per iteration.
+    - `y_width`: int in [2,20], the number of cells in the y direction, or the height of the strip to fill.
+    - `min_x_bdy`: int in [`dx_per_iter`,50], the minimal x coordinate to try to terminate the search with a straight right boundary.
+    - `max_x_bdy`: int in [`min_x_bdy`, 100], the maximal x coordinate to try to terminate the search with a straight right boundary.
+    - `optional_delta`: int in [1,10], the width of the band of optional points on the right boundary, i.e. the maximum horizontal variation in the jagged edges of the chunks.
+  - returns: A `RecurseConfig` instance with the above properties, and the following flag:
+    - `solved`: bool, whether the search has terminated successfully. This is how the recursion levels communicate with each other and terminate in a coordinated fashion.
+  - notes:
+    - The `dx_per_iter` is the most important parameter. Too small, and there will be no feasible solutions. Too large, and the search will be slow.
+    - A higher `optional_delta` will make the search slower, but more likely to find a solution. Also if it is set to 1, the boundaries of the chunks will be artificially flat.
+
+Then we must initialize a `SolutionCollector` instance, and pass it the `RecurseConfig` instance.
+
+- `SolutionCollector.__init__()`
+  - arguments:
+    - `recurse_config`: RecurseConfig instance, containing the configuration of the search.
+  - returns: A `SolutionCollector` instance with, besides the `RecurseConfig` object (`self.rc`), the following properties that are filled in procedurally during recursion:
+    - `rounding_up`: int, if zero, this chunk will not attempt a straight edge but will have optional gridpoints. If positive, it means this chunk will attempt to terminate the search with a straight edge of required points at the right boundary at a distance `rounding_up` from the previous chunk.
+    - `left_bdy`: int, the left boundary of the chunk.
+    - `target_x_bdy`: int, the first x coordinate to attempt to terminate the search with a straight edge. If not possible, the next chunk will have a larger value, until `rc.max_x_bdy` is reached.
+    - `skip_optional_pts`: set, containing the optional points from the previous chunk that were covered, and should be subtracted from the set of required points of the current chunk.
+    - `grouper_of_men`: `GrouperOfMen` instance, an auxiliary object that generates all possible foldings and translations of tiles.
+
+Then, in order, we must call the following methods:
+
+1. `SolutionCollector.construct_variables()`
+2. `SolutionCollector.construct_constraints()`
+If this method returns a `True`, there is a total cover of the grid, and we continue with
+3. `SolutionCollector.solve_myself()`
+if the search terminates successfully, the method
+4. `SolutionCollector.output_solution()`
+will save the solution to a json file in the `jsons` directory and plot it using a plotter, to be described later.
+
+Let us go over the function of each of these methods.
+
+- `SolutionCollector.construct_variables()`
+  - arguments:
+    - None
+  - returns: Nothing, but constructs the variables for the set covering problem, and stores them in the `SolutionCollector` instance. 
+  - notes:
+    - The variables are the `v_i`'s, and the `o_xy`'s.
+    - The `v_i`'s are the boolean variables for inclusion of each tile subset. Tiles that do not fit in the chunk are skipped from the state space.
+    - The `o_xy`'s are the boolean variables for the cover of each optional point.
+
+- `SolutionCollector.construct_constraints()`
+  - arguments:
+    - None
+  - returns: boolean, if `True`, there is a cover of all grid points, and the solver can be invoked. If `False`, the chunk is infeasible. 
+  - notes:
+    - There is one constraint per grid point, and one extra for the total number of used tiles.
+    - Some ad-hoc additional constraints prevent thin peninsulas in the optional points as they empirically prevent a grid cover in the next chunk.
+
+- `SolutionCollector.solve_myself()`
+  - arguments:
+    - None
+  - returns: boolean, `True` if a solution was found (useful for curtailing some of the search), `False` if failed. 
+  - notes:
+    - Will find all solutions of the set covering problem, (or fewer if halted asynchonously), and calls the `on_solution_callback` method of the `cp_model.CpSolverSolutionCallback` subclass.
+    - The method is called with the `self` instance as a callback object, and the solver will call the `on_solution_callback` method of the Callback object when a solution is found.
+
+- `SolutionCollector.on_solution_callback()`
+  - arguments:
+    - None
+  - returns: Nothing, but it will create a new `SolutionCollector` instance to solve the next chunk. 
+  - notes:
+    - The method is called by the solver when a solution is found. 
+    - It will then create a new instance of `SolutionCollector` to solve the next chunk, or terminate the search if `self.rounding_up` > 0 and the right boundary is straight.
+    - If the search has terminated, it will set the `solved` flag of the `RecurseConfig` object to `True`. When that flag is true, all instances of `cp_model.CpSolverSolutionCallback` in higher levels of recursion will terminate using `self.stop_search()`.
+
+- `SolutionCollector.stop_search()`
+  - arguments:
+    - None
+  - returns: Nothing
+  - notes:
+    - This method is inherited from `cp_model.CpSolverSolutionCallback`, and is used to halt the search asynchronously. It is the only way to produce a strict subset of the solutions.
+
+- `SolutionCollector.output_solution()`
+  - arguments:
+    - None
+  - returns: Nothing, but it will save the solution to a json file in the `jsons` directory and plot it using a plotter.
+  - notes:
+    - The first key the json contains is `tiles`: a list of lists of (x,y) coordinate tuples of cells: each list is a tile. 
+    - The second key is `juxt_index_list`: a list of lists of tuples of indices, each list is a tile, and the inside list tabulates which cells are connected.
+    - The plotter will plot the solution, and save it as a png file in the `images` directory.
+
+Another object that is central to the set covering approach is the `GrouperOfMen` class, from the `generative.py` script. It is used to generate all the foldings of tiles of men. These are used as the subsets from the problem formulation. These tiles specifically have `torso_length`=3, `arm_length`=2, and `leg_length`=3.
+These values are hardcoded. This was done with care to have an independent verification of the set of solutions from the permutation optimizer. It is not straightforward to generalize to arbitrary body dimensions: when limbs become long enough, the order in which they are placed becomes important: we must prevent the right arm from taking up space that would make the left arm infeasible, etc.
+
+After producing all foldings, these are rotated, and there are methods to group them by their outline (the set cover only cares about the used cells, not their interconnectivity), and translate them over the grid along the x and y axes.
+
+- `GrouperOfMen.__init__()`
+  - arguments:
+    - None
+  - returns: A `GrouperOfMen` instance with the following properties:
+    - `all_foldings`: a list of 2d numpy arrays with all possible foldings of the 3-2-3 man-tile. This includes rotations.
+    - `grouped_by_outline`, a dictionary grouping the above list by the folding `Outline`, or the set of cells it occupies. 
+  - Notes:
+    - The `Outline` is an auxiliary hashable class created as a many-to-one mapping from tile foldings. This is also modulo translations. There are 6124 foldings, and about 5k outlines of 3-2-3 men, reducing the complexity of the problem somewhat.
+    - When a tile is placed in the set covering problem, technically we first only place an `Outline`. We then select a random element (actual folding) of the list corresponding to that key in the `grouped_by_outline` dict, and place that tile into the solution.
+
+
+- `GrouperOfMen.get_all_men_plus_translations()`
+  - arguments:
+    - `x_left`: int, the leftmost x coordinate of the chunk
+    - `x_right`: int, rightmost x coordinate of the chunk
+    - `y_bottom`: int, the bottom y coordinate of the chunk
+    - `y_top`: int, the top y coordinate of the chunk
+  - returns:
+    - `all_translations`: a dict with `Outline`s as keys, and a 4D numpy array as values. The array contains all translations that lie completely within the box in the arguments.
+    - `self.grouped_by_outline`, the variable from the `__init__()` method.
+  - Notes:
+    - Tile foldings are represented as 2D numpy arrays. The translations replicate these for all applicable x- and y-translations. The first index of the array moves through the various x-translations. The second through the y-translations. The third iterates over the cells of the tile, and the fourth is the (x,y) tuple of each cell.
+    - Not all translations will actually fit in the chunk, but this method returns all candidates. They will be discarded later if they have any cells that fall outside the grid.
+
+# Four-color theorem
+
+
+
+# Plotters
+
+There are two plotting styles: geometric with only squares, and one using Bezier curves that is more faithful to the Keith Haring aesthetic.
+The logic can be found in the `plotter.py` script. Only the Matplotlib library is used.
+
+The more elementary geometric plotter is written in terms of the wrapping coordinate `w` from the permutation representation.
+
+- `plot_tile()`
+  - arguments:
+    - `cell_list`: list of integers, the `w` coordinates of the cells in the tile.
+    - `separate_list`: list of tuples of indices, the pairs of `w` coordinates of cells that should be separated by a line. Only neighboring cells should be present.
+    - `eye_list`: list of pairs: a `w` coordinate of the cell on which to place eyes, and as second element a list of (x,y) floats, coordinates relative to the cell center.
+    - `x_width`: int, the width of the grid: at what `w` coordinate the grid wraps around.
+    - `y_height`: int, the height of the grid in the same units as `w`.
+    - `color_list`: list of ints, which indicate the colors of the cells. We use 10 basic colors, then cycle around.
+    - `eye_size`: int, default 20: the size of the markers used to plot the eyes
+    - `save_dpi`: int, default 2000: the resolution of the saved image.
+  - returns: Nothing but displays the solutions and saves the image in the `images` directory as `KH_XXX_Y.png`, where `XXX` is the number of cells present, and `Y` is a unique counting number to prevent overwriting.
+
+The style is the one used in the example images above.
+
+Starting from a list of solutions in terms of numpy arrays (so using the (x,y)-representation, not the `w` representation), one can invoke this function through the `Tile` class.
+Simply create an instance of the tile, for instance using `Tile.man()`, that is of the same type as all the tiles in the solution. It will not work for mixed types. 
+
+- `Tile.plot_square_style()`
+  - arguments:
+    - `sols`: list of numpy arrays, each array is a tile, with the (x,y) coordinates of the cells in the tile.
+    - `color_list`: optional list of ints, which indicate the colors of the individual _tiles_. If omitted, they cycle through the 10 available colors.
+  - Notes:
+    - If you want to plot mixed instances of tiles from a saved list: you have to implement that yourself. 
+
+The Bezier plotter is more complex. It requires decomposing the topology of the tiles into a series of Bezier curves. We want to round corners, but not disconnect at the joints.
+Thus we need to understand the tiles as a collection of _strands_, or line segments (series of vertices connected by edges) that terminate in either a leaf or a split. This is done recursively unsing the `get_strands()` function from the `utils.py` script. That means it will work for any other tile instance you may design.
+
+From the `plotter.py` script, the function is
+
+- `plot_bezier_style()`
+  - arguments:
+    - `strands`: list of lists of tuples of floats, the (x,y) coordinates of the vertices of the strands.
+    - `colors`: list of ints, which indicate the colors of the strands. We use 10 basic colors, then cycle around.
+    - `widths`: list of lists of floats, the width of the strands. The outer list is per strand, the inner list per vertex.
+    - `eyes`: list of tuples of floats, the absolute (x,y) coordinates of the eyes.
+    - `smoothing_param`: float in [0,1), what proportion of the corners of segment to replace by a bezier curve. Default 0.5. Higher values make the curves smoother. At zero, we recover straight angles.
+    - `width_factor`: float, the factor by which to multiply the width of the strands. Default 10. Should be used to control the thickness, which presents differently with different canvas sizes
+    - `save_dpi`: int, default 2000: the resolution of the saved image.
+  - returns: Nothing but displays the solutions and saves the image in the `images` directory as `KH_XXX_bezier_Y.png`, where `XXX` is the number of strands present, and `Y` is a unique counting number to prevent overwriting.
+
+Again, from a list of solutions, one can invoke this function through the an instance of the `Tile` class.
+
+- `Tile.generate_strands_and_plot_bezier()`
+  - arguments:
+    - `sols`: list of numpy arrays, each array is a tile, with the (x,y) coordinates of the cells in the tile.
+    - `color_list`: optional list of ints, which indicate the colors of the individual _tiles_. If omitted, they cycle through the 10 available colors.
+    - `width_factor`: float, the factor by which to multiply the width of the strands. Default 3.5. Should be used to control the thickness, which presents differently with different canvas sizes.
+    - `smoothing_param`: float in [0,1), what proportion of the corners of segment to replace by a bezier curve. Default 0.5. Higher values make the curves smoother. At zero, we recover straight angles.

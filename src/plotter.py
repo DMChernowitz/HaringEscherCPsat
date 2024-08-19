@@ -31,6 +31,7 @@ def plot_tile(
         x_width: int,
         y_height: int,
         color_list: List[int],
+        eye_size: int = 20,
         save_dpi: int = 2000,
 ) -> None:
     """plot a set of tiles as squares, in terms of the wrapping (w) coordinate.
@@ -38,10 +39,11 @@ def plot_tile(
     Args:
         cell_list: list of integers, the cells to plot.
         separate_list: list of tuples of integers, between each of these cells there is a line.
-        eye_list: list of where to plot eyes and their orientation.
+        eye_list: list of which cells get eyes (dots) and the relative placement of the eyes on the cells.
         x_width: int, the width of the grid.
         y_height: int, the height of the grid.
         color_list: list of integers, the color of each cell.
+        eye_size: int, the size of the scatter marker used for the eyes.
         save_dpi: int, the dpi of the saved image.
     """
 
@@ -87,7 +89,7 @@ def plot_tile(
             scatter_x.append(x)
             scatter_y.append(y)
 
-    ax.scatter(scatter_x, scatter_y, s=20, c='k', marker='o')
+    ax.scatter(scatter_x, scatter_y, s=eye_size, c='k', marker='o')
 
     ax.set_aspect('equal')
     # plot outline
@@ -114,6 +116,8 @@ def plot_bezier_style(
         save_dpi: int = 2000
 ) -> None:
     """plot the topologically separate strands in a bezier style.
+    We want to round corners, but not move the points at which the strands connect. For this we need to know the
+    end-points of the line segments that constitute the tiles.
 
     Args:
         strands: list of lists of tuples, each tuple is a point (x,y). Each strand will be connected

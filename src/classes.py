@@ -204,7 +204,11 @@ class Tile:
             width_factor=width_factor
         )
 
-    def plot_square_style(self, sols: List[np.array], color_list: List[int] = None) -> None:
+    def plot_square_style(
+            self,
+            sols: List[np.array],
+            color_list: List[int] = None,
+    ) -> None:
         """Take a list of solutions (x,y representation) from the set covering formulation
         plot using the plot_tile function that represents each cell as a square on a grid.
 

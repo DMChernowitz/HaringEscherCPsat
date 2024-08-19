@@ -33,10 +33,6 @@ if __name__ == "__main__" and MODE == 0:
 
     # create the first solution collector
     solution_collector = SolutionCollector(
-        other_tiles=[],
-        rounding_up=0,
-        left_bdy=-1,
-        skip_optional_pts=set(),
         recurse_config=recurse_config
     )
     solution_collector.construct_variables()

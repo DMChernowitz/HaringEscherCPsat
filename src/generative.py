@@ -107,11 +107,11 @@ class GrouperOfMen:
     Can translate all these tiles to desired x,y coordinates."""
 
     def __init__(self):
-        self.all_p = self.get_all_men()
-        self.grouped_by_outline = group_by_outline(self.all_p)
+        self.all_foldings: List[np.array] = self.get_all_men_foldings()
+        self.grouped_by_outline: Dict[Outline,List[np.array]] = group_by_outline(self.all_foldings)
 
     def get_all_men_plus_translations(self, x_left, x_right, y_bottom, y_top):
-        """Return all possible foldings and rotations, and on top of that, all possible rotations
+        """Return all possible foldings and rotations, and on top of that, all possible translations
         of each of those foldings that lie inside the bounding box defined by x_left, x_right, y_bottom, y_top.
 
         The return value is a dictionary with the outlines as keys, and the values are lists of numpy arrays.
@@ -130,7 +130,7 @@ class GrouperOfMen:
         return all_translations, self.grouped_by_outline
 
     @classmethod
-    def get_all_men(cls):
+    def get_all_men_foldings(cls) -> List[np.array]:
         """Return all possible foldings and rotations of a 3-2-3 man tile"""
         all_combs = [np.array(p, dtype=int) for p in cls.all_combinations_of_man()]
         all_possibilities_with_symmetries = []
@@ -181,7 +181,7 @@ class GrouperOfMen:
 
     @property
     def n_cells_per_tile(self):
-        return len(self.all_p[0])
+        return len(self.all_foldings[0])
 
 
 def test_grouper():

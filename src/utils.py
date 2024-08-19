@@ -125,7 +125,11 @@ def three_pts_collinear(pt1: tuple, pt2: tuple, pt3: tuple) -> bool:
 
 
 def get_strands(juxt_list: List[Tuple[int]]) -> List[List[int]]:
-    """return a list of strands of connected cells"""
+    """return a list of strands of connected cells.
+
+    Uses recursion to find all path segments inside a tree without cycles.
+    A path segment here is defined as a sequence of connected vertices terminating in either a leaf or a split.
+    """
     # identify all pts with more than 2 outgoing connections
     connex: Dict[int,List[int]] = {}
     for juxt in juxt_list:
@@ -199,14 +203,24 @@ class RecurseConfig:
             min_x_bdy: int,
             max_x_bdy: int,
             optional_delta: int,
-            solved: bool = False
     ):
+        if not 2 <= dx_per_iter <= 10:
+            raise ValueError("dx_per_iter should be between 2 (logical requirement) and 20 (heuristic for efficiency)")
+        if not 2 <= y_width <= 20:
+            raise ValueError("y_width should be between 2 (logical requirement) and 20 (heuristic for efficiency)")
+        if not dx_per_iter <= min_x_bdy <= 50:
+            raise ValueError("min_x_bdy should be between dx_per_iter and 50")
+        if not min_x_bdy <= max_x_bdy <= 100:
+            raise ValueError("max_x_bdy should be between min_x_bdy and 100")
+        if not 1 <= optional_delta <= 10:
+            raise ValueError("optional_delta should be between 1 (logical requirement) and 10 (heuristic for efficiency)")
+
         self.dx_per_iter = dx_per_iter
         self.y_width = y_width
         self.min_x_bdy = min_x_bdy
         self.max_x_bdy = max_x_bdy
         self.optional_delta = optional_delta
-        self.solved = solved
+        self.solved = False
 
 def save_json(filename, results_dict):
     n_prev = sum([f.startswith(filename) for f in os.listdir(JSON_DIR)])

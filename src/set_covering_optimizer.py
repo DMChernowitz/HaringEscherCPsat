@@ -16,11 +16,11 @@ SC = TypeVar("SC", bound="SolutionCollector")
 
 class SolutionCollector(cp_model.CpSolverSolutionCallback):
     def __init__(self,
-                 other_tiles: List[np.array],
-                 rounding_up: int,
-                 left_bdy: int,
-                 skip_optional_pts: Set[Tuple[int, int]],
                  recurse_config: RecurseConfig,
+                 rounding_up: int = None,
+                 left_bdy: int = None,
+                 skip_optional_pts: Set[Tuple[int, int]] = None,
+                 other_tiles: List[np.array] = None,
                  grouper_of_men: GrouperOfMen = None,
                  target_x_bdy: int = None,
                  progress_tree_string: List[str] = None,
@@ -43,10 +43,16 @@ class SolutionCollector(cp_model.CpSolverSolutionCallback):
         # grid parameters
 
         # global progress parameters
+        # if they are none, this is the first iteration, and we choose the default values
+        if other_tiles is None:
+            other_tiles = []
         self.other_tiles = other_tiles
+        if rounding_up is None:
+            rounding_up = 0
         self.rounding_up = rounding_up
+        if left_bdy is None:
+            left_bdy = -1
         self.left_bdy = max(0,left_bdy)
-        self.grouper_of_men = grouper_of_men
         self.rc = recurse_config
         if target_x_bdy is None:
             target_x_bdy = self.rc.min_x_bdy
@@ -60,6 +66,8 @@ class SolutionCollector(cp_model.CpSolverSolutionCallback):
         if chunks is None:
             chunks = []
         self.chunks = chunks
+        if skip_optional_pts is None:
+            skip_optional_pts = set()
 
         if rounding_up:
             self.right_bdy = left_bdy + rounding_up
@@ -71,7 +79,7 @@ class SolutionCollector(cp_model.CpSolverSolutionCallback):
                 for y in range(self.rc.y_width)
             }
         pre_pts_in_grid = {(x, y) for x in range(self.left_bdy, self.right_bdy) for y in range(self.rc.y_width)}
-        self.all_p, self.grouped_p = self.grouper_of_men.get_all_men_plus_translations(
+        self.all_foldings, self.grouped_foldings = self.grouper_of_men.get_all_men_plus_translations(
             x_left=self.left_bdy,
             x_right=self.right_bdy + self.rc.optional_delta,
             y_bottom=0,
@@ -95,7 +103,9 @@ class SolutionCollector(cp_model.CpSolverSolutionCallback):
 
         self.all_pts = self.pts_in_grid.union(self.optional_pts)
         self.n_men = (len(self.pts_in_grid) + len(self.optional_pts) // 2) // self.grouper_of_men.n_cells_per_tile
-        self.all_bool_vars: Dict[Outline, List[List[Union[cp_model.IntVar, None]]]] = {k: [] for k in self.all_p.keys()}
+        self.all_bool_vars: Dict[Outline, List[List[Union[cp_model.IntVar, None]]]] = {
+            k: [] for k in self.all_foldings.keys()
+        }
         self.all_vars_list = []
         self.optional_cover_bools: Dict[Tuple[int, int], cp_model.IntVar] = {}
         self.print_tree_prog()
@@ -117,7 +127,7 @@ class SolutionCollector(cp_model.CpSolverSolutionCallback):
         print("Creating variables. ", end="")
         total_variables = 0
         discarded = 0
-        for h, (outline, base_shape) in enumerate(self.all_p.items()):
+        for h, (outline, base_shape) in enumerate(self.all_foldings.items()):
             xw, yw, _, _ = base_shape.shape
             for dx in range(xw):
                 self.all_bool_vars[outline].append([])
@@ -171,7 +181,9 @@ class SolutionCollector(cp_model.CpSolverSolutionCallback):
             # no long peninsulas at the boundaries
             for f, delt in [(min, 1), (max, -1)]:
                 y_opt = f([y for x, y in self.optional_pts])
-                self.model.Add(self.optional_cover_bools[(minx_opt, y_opt)] >= self.optional_cover_bools[(maxx_opt, y_opt + delt)])
+                self.model.Add(
+                    self.optional_cover_bools[(minx_opt, y_opt)] >= self.optional_cover_bools[(maxx_opt, y_opt + delt)]
+                )
 
         # create additional constraint
         self.model.Add(sum(self.all_vars_list) == self.n_men)
@@ -213,16 +225,16 @@ class SolutionCollector(cp_model.CpSolverSolutionCallback):
         """Callback function for the solver, called when a solution is found. The recursion must take place here."""
         included_tiles = []
 
-        for outline, base_shape in self.all_p.items():
+        for outline, base_shape in self.all_foldings.items():
             xw, yw, _, _ = base_shape.shape
             for dx in range(xw):
                 for dy in range(yw):
                     this_var = self.all_bool_vars[outline][dx][dy]
                     if (this_var is not None) and self.Value(this_var):
-                        n_options = len(self.grouped_p[outline])
+                        n_options = len(self.grouped_foldings[outline])
                         minx, miny = min(base_shape[dx, dy, :, 0]), min(base_shape[dx, dy, :, 1])
                         # translate to correct place in grid
-                        use_base_shape = self.grouped_p[outline][random.randint(0, n_options - 1)] + [minx, miny]
+                        use_base_shape = self.grouped_foldings[outline][random.randint(0, n_options - 1)] + [minx, miny]
                         included_tiles.append(use_base_shape)
 
         used_optional_pts = set()
@@ -284,6 +296,7 @@ class SolutionCollector(cp_model.CpSolverSolutionCallback):
         progress_tree_string = self.progress_tree_string + [f"({len(self.solution_list)})----"]
         chunks = self.chunks + [self.pts_in_grid.union(self.solution_list[-1]["used_optional_pts"])]
 
+        # start recursion with current progress
         deeper_solution_collector = SolutionCollector(
             other_tiles=self.other_tiles+self.solution_list[-1]["included_tiles"],
             rounding_up=rounding_up,
