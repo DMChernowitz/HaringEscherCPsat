@@ -539,3 +539,7 @@ Again, from a list of solutions, one can invoke this function through the an ins
     - `color_list`: optional list of ints, which indicate the colors of the individual _tiles_. If omitted, they cycle through the 10 available colors.
     - `width_factor`: float, the factor by which to multiply the width of the strands. Default 3.5. Should be used to control the thickness, which presents differently with different canvas sizes.
     - `smoothing_param`: float in [0,1), what proportion of the corners of segment to replace by a bezier curve. Default 0.5. Higher values make the curves smoother. At zero, we recover straight angles.
+
+See below, the _piece-de-resistance_ of this project: the combination of the set-covering optimizer, four-color theorem, and Bezier plotter:
+
+![bezier](./readme_imgs/KHCP_banner.png)
