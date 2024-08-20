@@ -1,6 +1,6 @@
 # HaringEscherCPsat
 
-This is a hobby project that uses Constraint Programming and some recursion to generate artistic images. They are inspired by the work of Keith Haring (for their aesthetics) and MC Escher (for their pattern structure). The goal is to create large interlocking patterns of organic shapes. But unlike in Escher's work, and more like in Haring's work, we don't want translational symmetry (or repetition).
+This is a hobby project that uses Constraint Programming and some recursion to generate artistic images. They are inspired by the work of Keith Haring (for their aesthetics) and MC Escher (for their pattern structure). The goal is to create large interlocking patterns of organic shapes. But unlike in Escher's work, and more like in Haring's work, let us see if we can avoid translational symmetry (or repetition).
 
 # Getting started
 
@@ -14,7 +14,7 @@ Take note that the script may take some minutes to terminate, if mode 0 or 1 are
 ### What this repo does
 
 This repo contains scripts to generate tesselated figures without repetition, and to plot them. I will call this the Tiling Problem. See an example below.
-In the example, faces were added later for clarity (and shits and giggles.)
+In this example, faces were added later to aid the interpretation (and for shits and giggles).
 
 ![An example of a solution to the tiling problem](./readme_imgs/KH_crop.png)
 
@@ -70,8 +70,8 @@ Remember that the numbers on this figure are not the `w` coordinate, but the ind
 
 The constraint programming formulation is when we take the intuitive demands, valid independently for each tile.
 
-    |w[i] - w[j]|  =  1 or X            for all (i,j) in E
-    (w[i] + w[j] + 1) % X  !=  0        for all (i,j) in E
+    Abs(w[i] - w[j])        =  1 or X            for all (i,j) in E
+    (w[i] + w[j] + 1) % X  !=  0                 for all (i,j) in E
 
 The first demand is simply the juxtaposition. If `w[i]-w[j]` is +1 or -1, the two cells are left and right. If it is +X or -X, they are vertically stacked.
 The only caveat is that we don't want them to be in subsequent grid points, if those points are exactly on either side of the boundary (i.e. 6 and 7 in the example). That is the function of the second constraint.
@@ -387,6 +387,7 @@ Let us go over the function of each of these methods.
     - The `v_i`'s are the boolean variables for inclusion of each tile subset. Tiles that do not fit in the chunk are skipped from the state space.
     - The `o_xy`'s are the boolean variables for the cover of each optional point.
 
+
 - `SolutionCollector.construct_constraints()`
   - arguments:
     - None
@@ -395,6 +396,7 @@ Let us go over the function of each of these methods.
     - There is one constraint per grid point, and one extra for the total number of used tiles.
     - Some ad-hoc additional constraints prevent thin peninsulas in the optional points as they empirically prevent a grid cover in the next chunk.
 
+
 - `SolutionCollector.solve_myself()`
   - arguments:
     - None
@@ -402,6 +404,7 @@ Let us go over the function of each of these methods.
   - notes:
     - Will find all solutions of the set covering problem, (or fewer if halted asynchonously), and calls the `on_solution_callback` method of the `cp_model.CpSolverSolutionCallback` subclass.
     - The method is called with the `self` instance as a callback object, and the solver will call the `on_solution_callback` method of the Callback object when a solution is found.
+
 
 - `SolutionCollector.on_solution_callback()`
   - arguments:
@@ -412,12 +415,14 @@ Let us go over the function of each of these methods.
     - It will then create a new instance of `SolutionCollector` to solve the next chunk, or terminate the search if `self.rounding_up` > 0 and the right boundary is straight.
     - If the search has terminated, it will set the `solved` flag of the `RecurseConfig` object to `True`. When that flag is true, all instances of `cp_model.CpSolverSolutionCallback` in higher levels of recursion will terminate using `self.stop_search()`.
 
+
 - `SolutionCollector.stop_search()`
   - arguments:
     - None
   - returns: Nothing
   - notes:
     - This method is inherited from `cp_model.CpSolverSolutionCallback`, and is used to halt the search asynchronously. It is the only way to produce a strict subset of the solutions.
+
 
 - `SolutionCollector.output_solution()`
   - arguments:
