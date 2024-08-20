@@ -516,7 +516,13 @@ Simply create an instance of the tile, for instance using `Tile.man()`, that is 
     - If you want to plot mixed instances of tiles from a saved list: you have to implement that yourself. 
 
 The Bezier plotter is more complex. It requires decomposing the topology of the tiles into a series of Bezier curves. We want to round corners, but not disconnect at the joints.
-Thus we need to understand the tiles as a collection of _strands_, or line segments (series of vertices connected by edges) that terminate in either a leaf or a split. This is done recursively unsing the `get_strands()` function from the `utils.py` script. That means it will work for any other tile instance you may design.
+Thus we need to understand the tiles as a collection of _strands_, or line segments (series of vertices connected by edges) that terminate in either a leaf or a split. This is done recursively unsing the `get_strands()` function from the `utils.py` script. That means it will work for any other tile instance you may design. 
+
+For example, the 3-2-3 man, decomposes into 6 strands (regardless of its folding), as in the following image:
+
+![bezier](./readme_imgs/mantile_strands.png)
+
+Along with the `width` attribute of the tile instances, we can interpolate both position and thickness of the strands continuously, achieving an organic look.
 
 From the `plotter.py` script, the function is
 
@@ -524,7 +530,7 @@ From the `plotter.py` script, the function is
   - arguments:
     - `strands`: list of lists of tuples of floats, the (x,y) coordinates of the vertices of the strands.
     - `colors`: list of ints, which indicate the colors of the strands. We use 10 basic colors, then cycle around.
-    - `widths`: list of lists of floats, the width of the strands. The outer list is per strand, the inner list per vertex.
+    - `widths`: list of lists of floats, the width of the strands. The outer list is per strand, the inner list per cell / vertex.
     - `eyes`: list of tuples of floats, the absolute (x,y) coordinates of the eyes.
     - `smoothing_param`: float in [0,1), what proportion of the corners of segment to replace by a bezier curve. Default 0.5. Higher values make the curves smoother. At zero, we recover straight angles.
     - `width_factor`: float, the factor by which to multiply the width of the strands. Default 10. Should be used to control the thickness, which presents differently with different canvas sizes
